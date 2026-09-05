@@ -1,52 +1,63 @@
-# FluxPay - AI Revenue Recovery Agent
+# FluxPay
 
-FluxPay is a hackathon MVP for detecting failed payments, preparing recovery cases, and laying the foundation for an AI-guided revenue recovery workflow.
+FluxPay is an AI-guided revenue-recovery MVP. It tracks failed payments, creates recovery cases, recommends actions, and shows recovery activity in a React dashboard.
 
-This milestone includes:
+## Stack
 
-- React + TypeScript + Vite frontend shell
-- FastAPI backend
-- PostgreSQL via Docker Compose
-- SQLAlchemy models for customers, payments, attempts, recovery cases, actions, agent decisions, and audit logs
-- Alembic migrations
-- Deterministic seed data with 80 failed payment recovery cases
-- Health-check endpoint
-- Clean AI provider boundary for later structured decisions
-- Batch recovery runs with deterministic, configurable simulated outcomes and run history
+- Frontend: React, TypeScript, and Vite
+- API: FastAPI and SQLAlchemy
+- Database: PostgreSQL 16
+- Migrations: Alembic
+- Local containers: Docker Compose
 
-## Requirements
+## Run locally
 
-- Docker and Docker Compose
-- Python 3.11+
-- Node.js 20+
+### Prerequisites
 
-## Local Setup
+- Docker Desktop with Docker Compose
+- Node.js 20+ (for the frontend)
 
-Copy the example environment file:
+### 1. Configure environment variables
+
+From the repository root:
 
 ```bash
 cp .env.example .env
 ```
 
-Start PostgreSQL:
+Set strong, unique values for `POSTGRES_PASSWORD` before deploying anywhere other than your computer. The `DATABASE_URL` in `.env` is for host-side commands; Docker overrides it internally so the backend uses the `postgres` service.
+
+### 2. Start the API and database
 
 ```bash
-docker compose up -d postgres
+docker compose up -d --build
 ```
 
-Set up the backend:
+Check that both services are running:
 
 ```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-alembic upgrade head
-python -m app.scripts.seed
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload --reload-dir app
+docker compose ps
 ```
 
-In a second terminal, set up the frontend:
+### 3. Run database migrations
+
+Run migrations from the Docker network. This avoids conflicts with any PostgreSQL instance installed directly on the host.
+
+```bash
+docker compose run --rm backend alembic upgrade head
+```
+
+### 4. Seed demo data
+
+```bash
+docker compose run --rm backend python -m app.scripts.seed
+```
+
+The seed script recreates its demo records: 10 customers and 80 recovery cases, including payments, failed attempts, AI decisions, actions, and audit logs.
+
+### 5. Start the frontend
+
+In a second terminal:
 
 ```bash
 cd frontend
@@ -54,300 +65,25 @@ npm install
 npm run dev
 ```
 
-Open:
+Open the app at <http://localhost:5173>. API documentation is at <http://localhost:8000/docs>; health endpoints are `/health` and `/health/db`.
 
-- Frontend: http://localhost:5173
-- Backend health: http://localhost:8000/health
-- Database health: http://localhost:8000/health/db
-- API docs: http://localhost:8000/docs
+## Operations
 
-## Docker Backend Option
-
-After creating `.env`, you can also run PostgreSQL and the backend together:
+View logs:
 
 ```bash
-docker compose up --build
+docker compose logs -f backend
+docker compose logs -f postgres
 ```
 
-Then run migrations and seed data from the host or inside the backend container:
+Stop services without deleting database data:
 
 ```bash
-docker compose exec backend alembic upgrade head
-docker compose exec backend python -m app.scripts.seed
+docker compose down
 ```
 
-## Architecture Boundary
-
-The LLM integration is intentionally isolated under `backend/app/services/ai`.
-
-Future recovery execution should follow this flow:
-
-```text
-LLM -> structured decision -> backend validation -> policy engine -> action executor
-```
-
-The LLM must not write to the database or execute actions directly. Backend code owns policy enforcement, financial calculations, persistence, and action execution.
-
-## Step 2 Endpoints
-
-Mark a payment as failed and create a recovery case:
+For a fresh local database only (this deletes the database volume):
 
 ```bash
-curl -X POST http://localhost:8000/payments/{payment_id}/fail \
-  -H "Content-Type: application/json" \
-  -d '{"failure_reason":"INSUFFICIENT_FUNDS"}'
-```
-
-List detected recovery cases:
-
-```bash
-curl http://localhost:8000/recovery/cases
-```
-
-Dashboard metrics:
-
-```bash
-curl http://localhost:8000/dashboard/metrics
-```
-
-Database health:
-
-```bash
-curl http://localhost:8000/health/db
-```
-
-## Step 3 AI Diagnosis
-
-The agent provider is configured through environment variables:
-
-```bash
-LLM_PROVIDER=stub
-```
-
-The current `stub` provider returns deterministic structured JSON for local development and tests.
-Provider-specific API keys should be added only inside provider-specific implementations, not in API
-route handlers.
-
-Analyze a detected recovery case:
-
-```bash
-curl -X POST http://localhost:8000/recovery/cases/{case_id}/analyze
-```
-
-Example response:
-
-```json
-{
-  "decision_id": "decision-id",
-  "recovery_case_id": "case-id",
-  "status": "ACTION_REQUIRED",
-  "decision": {
-    "diagnosis": "temporary_payment_failure",
-    "risk_level": "LOW",
-    "recommended_action": "RETRY_PAYMENT",
-    "delay_hours": 24,
-    "confidence": 0.82,
-    "reason": "The customer has a strong prior payment history and this looks recoverable."
-  }
-}
-```
-
-At this stage the agent only recommends an action. It does not execute payments, send emails, run
-retries, or modify the database directly outside the backend service workflow.
-
-## Step 4 Policy Engine and Simulated Execution
-
-Execute the latest AI recommendation for a recovery case:
-
-```bash
-curl -X POST http://localhost:8000/recovery/cases/{case_id}/execute
-```
-
-Execution always follows the backend-controlled flow:
-
-```text
-AI decision -> policy engine -> bounded action executor -> outcome -> audit log
-```
-
-The policy engine enforces:
-
-- maximum payment retries: 3
-- minimum retry interval: 24 hours
-- escalation after 3 failed attempts
-- no automated `RETRY_PAYMENT` or `SEND_PAYMENT_LINK` for HIGH-risk cases unless explicitly allowed
-- allowed actions: `RETRY_PAYMENT`, `SEND_PAYMENT_LINK`, `ESCALATE`, `STOP`
-
-The action executor is simulated:
-
-- `RETRY_PAYMENT` creates a payment attempt and simulates success or failure
-- `SEND_PAYMENT_LINK` simulates a payment-link recovery success or failure
-- `ESCALATE` marks the case as `ESCALATED`
-- `STOP` marks the case as `STOPPED`
-
-Successful simulated payment recovery sets `recovered_revenue` from the backend-owned payment
-amount. The AI never determines recovered revenue and never executes actions directly.
-
-Example approved execution response:
-
-```json
-{
-  "executed": true,
-  "idempotent": false,
-  "action": "RETRY_PAYMENT",
-  "status": "RECOVERED",
-  "reason": "Simulated retry succeeded.",
-  "recovered_revenue": "250.00",
-  "payment_attempt_id": "attempt-id",
-  "recovery_action_id": "action-id",
-  "executed_at": "2026-09-05T09:00:00Z",
-  "policy": {
-    "allowed": true,
-    "action": "RETRY_PAYMENT",
-    "reason": "Retry limit has not been reached."
-  }
-}
-```
-
-## Step 5 Batch Recovery Simulation
-
-Run all eligible recovery cases through the existing AI analysis, policy engine, bounded executor,
-and audit services in one request:
-
-```bash
-curl -X POST http://localhost:8000/recovery/run \
-  -H "Content-Type: application/json" \
-  -d '{
-    "retry_success_probability": 0.65,
-    "payment_link_success_probability": 0.55,
-    "simulation_seed": "hackathon-demo",
-    "idempotency_key": "demo-run-001"
-  }'
-```
-
-The probabilities are deterministic: a case, action, seed, and probability always produce the same
-outcome. Set either probability to `1` to demonstrate guaranteed recovery or `0` for a guaranteed
-failed outcome. Defaults can also be configured in `.env`:
-
-```bash
-SIMULATION_SEED=FluxPay-demo
-RETRY_SUCCESS_PROBABILITY=0.65
-PAYMENT_LINK_SUCCESS_PROBABILITY=0.55
-```
-
-Example response:
-
-```json
-{
-  "run_id": "7c0af9d1-58f0-48f7-a737-1be5be0e4c74",
-  "cases_processed": 80,
-  "actions_executed": 72,
-  "recovered_cases": 45,
-  "escalated_cases": 14,
-  "stopped_cases": 0,
-  "revenue_at_risk": "48500.00",
-  "revenue_recovered": "31200.00",
-  "recovery_rate": "0.6433"
-}
-```
-
-`recovery_rate` is a backend-calculated ratio (`revenue_recovered / revenue_at_risk`), rounded to
-four decimal places. Each run is persisted and may be reviewed with:
-
-```bash
-curl http://localhost:8000/recovery/runs
-curl http://localhost:8000/dashboard/metrics
-```
-
-To demonstrate the full flow locally, run migrations, seed the data, start the API, then invoke
-`POST /recovery/run` with a fixed seed. Repeating the same request with its `idempotency_key`
-returns the original run without executing another action. A later request without that key only
-processes cases that have not already reached an executed or policy-blocked action.
-
-## Dashboard
-
-The React dashboard consumes the live backend APIs for metrics, recovery cases, batch runs, audit
-activity, and case detail. Start the backend (after migrations and seed data) and then the frontend:
-
-```bash
-cd backend
-source .venv/bin/activate
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
-
-```bash
-cd frontend
-npm run dev
-```
-
-Open `http://localhost:5173`. The Vite client expects the API at `http://localhost:8000`; override
-that address with `VITE_API_BASE_URL` when needed. Click a recovery case to inspect its customer,
-payment history, AI recommendation, policy result, and actions. Click **Run AI Recovery** to launch
-a batch, then observe the refreshed KPI cards, case statuses, batch history, and audit activity.
-
-Case details are supplied by `GET /recovery/cases/{case_id}`. The response is a safe, read-only
-explainability view: it includes customer and payment context, AI diagnosis and reasoning, the
-backend policy decision, executed action outcomes, recovered revenue, and chronological audit
-events. It never exposes provider credentials or gives the frontend authority to calculate or alter
-recovery results.
-
-## Judge Demo Mode
-
-With the backend and frontend running, open `http://localhost:5173` and use this repeatable flow:
-
-1. Click **Reset Demo** and confirm. This recreates six deterministic `DEMO-` customer scenarios
-   without deleting non-demo records.
-2. Review the queue: it includes strong-history, high-value, expired-card, network-failure, and
-   repeated-failure cases.
-3. Click **Run AI Recovery**. The dashboard polls the persisted run progress and displays processed,
-   recovered, failed, escalated, and recovered-revenue totals while the existing recovery pipeline
-   runs.
-4. Open a case to show the agent explanation, policy decision, audit timeline, and actual outcome.
-5. Use the completed summary and KPI cards to compare AI estimates with actual recovered revenue.
-
-The supporting APIs are `POST /recovery/demo/reset`, `POST /recovery/run/live`, and
-`GET /recovery/runs/{run_id}/progress`. The standard synchronous `POST /recovery/run` remains
-available for API clients and tests.
-
-## Audit and Stopping Rules
-
-Audit records are append-only from the application layer; no API permits editing or deleting them.
-Use `GET /recovery/cases/{case_id}/audit` for a chronological case history, or `GET /recovery/audit-logs`
-with optional `event_type`, `case_id`, `start_at`, and `end_at` filters. The system records AI analysis,
-policy checks and rejections, actions, retry outcomes, payment-link events, escalation, stopping, and
-recovery-run lifecycle events.
-
-Automated recovery is bounded by backend policy: retries stop at the configured maximum, retry timing
-is enforced, repeated failures require escalation, and HIGH-risk automated actions are rejected unless
-explicitly enabled. Recovered, stopped, and escalated cases are terminal for automatic recovery; a new
-automatic action returns a conflict rather than changing their state. AI recommendations never override
-these rules.
-
-## Recovery Strategy Scoring
-
-AI decisions also include an `expected_recovery_probability`, distinct from decision `confidence`.
-The backend supplies the agent with focused payment and customer behavior context (lifetime value,
-success/failure history, recovery outcomes, payment delays, retry count, and customer segment), then
-validates the structured response before persisting it. Dashboard metrics expose the average AI
-estimate alongside actual recovery performance; policy evaluation and revenue calculations remain
-backend-controlled.
-
-Example rejected execution response:
-
-```json
-{
-  "executed": false,
-  "idempotent": false,
-  "action": "RETRY_PAYMENT",
-  "status": "ACTION_REQUIRED",
-  "reason": "Minimum retry interval has not elapsed.",
-  "recovered_revenue": "0.00",
-  "payment_attempt_id": null,
-  "recovery_action_id": "blocked-action-id",
-  "executed_at": null,
-  "policy": {
-    "allowed": false,
-    "action": "RETRY_PAYMENT",
-    "reason": "Minimum retry interval has not elapsed."
-  }
-}
+docker compose down -v
 ```
