@@ -9,3 +9,7 @@ class DashboardMetrics(BaseModel):
     active_recovery_cases: int
     recovered_cases: int
     recovery_rate: Decimal
+    total_recovery_cases: int
+    retrying_cases: int
+    escalated_cases: int
+    stopped_cases: int

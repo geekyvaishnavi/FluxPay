@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models import RecoveryCase
+from app.models import RecoveryAction, RecoveryCase
 from app.models.enums import RecoveryCaseStatus
 from app.schemas.dashboard import DashboardMetrics
 
@@ -37,6 +37,24 @@ def get_dashboard_metrics(session: Session = Depends(get_db)):
         .select_from(RecoveryCase)
         .where(RecoveryCase.status == RecoveryCaseStatus.RECOVERED)
     )
+    total_recovery_cases = session.scalar(select(func.count()).select_from(RecoveryCase))
+    retrying_cases = session.scalar(
+        select(func.count())
+        .select_from(RecoveryCase)
+        .join(RecoveryAction, RecoveryAction.recovery_case_id == RecoveryCase.id)
+        .where(RecoveryCase.status == RecoveryCaseStatus.ACTION_REQUIRED)
+        .where(RecoveryAction.action_type == "RETRY_PAYMENT")
+    )
+    escalated_cases = session.scalar(
+        select(func.count())
+        .select_from(RecoveryCase)
+        .where(RecoveryCase.status == RecoveryCaseStatus.ESCALATED)
+    )
+    stopped_cases = session.scalar(
+        select(func.count())
+        .select_from(RecoveryCase)
+        .where(RecoveryCase.status == RecoveryCaseStatus.STOPPED)
+    )
     recovery_rate = Decimal("0.00")
     if total_revenue_at_risk > 0:
         recovery_rate = (
@@ -49,4 +67,8 @@ def get_dashboard_metrics(session: Session = Depends(get_db)):
         active_recovery_cases=active_recovery_cases or 0,
         recovered_cases=recovered_cases or 0,
         recovery_rate=recovery_rate,
+        total_recovery_cases=total_recovery_cases or 0,
+        retrying_cases=retrying_cases or 0,
+        escalated_cases=escalated_cases or 0,
+        stopped_cases=stopped_cases or 0,
     )

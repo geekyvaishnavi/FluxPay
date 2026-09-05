@@ -150,4 +150,8 @@ def test_dashboard_metrics_are_calculated_by_backend(
         "active_recovery_cases": 1,
         "recovered_cases": 1,
         "recovery_rate": "50.00",
+        "total_recovery_cases": 3,
+        "retrying_cases": 0,
+        "escalated_cases": 0,
+        "stopped_cases": 1,
     }

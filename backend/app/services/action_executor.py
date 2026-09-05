@@ -1,10 +1,13 @@
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
+from hashlib import sha256
 from typing import Protocol
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models import AgentDecision, AuditLog, Payment, PaymentAttempt, RecoveryAction, RecoveryCase
 from app.models.enums import (
     AuditEventType,
@@ -22,17 +25,79 @@ class RetrySimulator(Protocol):
         pass
 
 
+class PaymentLinkSimulator(Protocol):
+    def __call__(self, payment: Payment, recovery_case: RecoveryCase) -> bool:
+        pass
+
+
+@dataclass(frozen=True)
+class SimulationConfig:
+    retry_success_probability: Decimal
+    payment_link_success_probability: Decimal
+    seed: str
+
+
+def _deterministic_outcome(
+    action: RecoveryActionType,
+    recovery_case: RecoveryCase,
+    probability: Decimal,
+    seed: str,
+) -> bool:
+    if probability <= 0:
+        return False
+    if probability >= 1:
+        return True
+    digest = sha256(f"{seed}:{action.value}:{recovery_case.id}".encode()).digest()
+    sample = Decimal(int.from_bytes(digest[:8], "big")) / Decimal(2**64)
+    return sample < probability
+
+
 def default_retry_simulator(
     payment: Payment,
     recovery_case: RecoveryCase,
     attempt_number: int,
 ) -> bool:
-    return attempt_number % 2 == 0
+    return _deterministic_outcome(
+        RecoveryActionType.RETRY_PAYMENT,
+        recovery_case,
+        Decimal(str(settings.retry_success_probability)),
+        settings.simulation_seed,
+    )
+
+
+def default_payment_link_simulator(payment: Payment, recovery_case: RecoveryCase) -> bool:
+    return _deterministic_outcome(
+        RecoveryActionType.SEND_PAYMENT_LINK,
+        recovery_case,
+        Decimal(str(settings.payment_link_success_probability)),
+        settings.simulation_seed,
+    )
 
 
 class ActionExecutor:
-    def __init__(self, retry_simulator: RetrySimulator = default_retry_simulator) -> None:
+    def __init__(
+        self,
+        retry_simulator: RetrySimulator = default_retry_simulator,
+        payment_link_simulator: PaymentLinkSimulator = default_payment_link_simulator,
+    ) -> None:
         self.retry_simulator = retry_simulator
+        self.payment_link_simulator = payment_link_simulator
+
+    def with_simulation_config(self, config: SimulationConfig) -> "ActionExecutor":
+        return ActionExecutor(
+            retry_simulator=lambda payment, recovery_case, attempt_number: _deterministic_outcome(
+                RecoveryActionType.RETRY_PAYMENT,
+                recovery_case,
+                config.retry_success_probability,
+                config.seed,
+            ),
+            payment_link_simulator=lambda payment, recovery_case: _deterministic_outcome(
+                RecoveryActionType.SEND_PAYMENT_LINK,
+                recovery_case,
+                config.payment_link_success_probability,
+                config.seed,
+            ),
+        )
 
     def execute(
         self,
@@ -169,22 +234,45 @@ class ActionExecutor:
         decision: AgentDecision,
         policy_result: PolicyEvaluationResult,
     ) -> ActionExecutionResult:
+        payment = session.get_one(Payment, recovery_case.payment_id)
         now = datetime.now(UTC).replace(microsecond=0)
-        recovery_case.status = RecoveryCaseStatus.ACTION_REQUIRED
+        link_succeeded = self.payment_link_simulator(payment, recovery_case)
+        if link_succeeded:
+            payment.status = PaymentStatus.RECOVERED
+            recovery_case.status = RecoveryCaseStatus.RECOVERED
+            recovery_case.recovered_revenue = Decimal(payment.amount).quantize(Decimal("0.01"))
+            recovery_case.closed_at = now
+        else:
+            recovery_case.status = RecoveryCaseStatus.ACTION_REQUIRED
         action = self._record_action(
             session,
             recovery_case,
             decision,
             policy_result,
-            {"decision_id": decision.id, "message": "Simulated payment link sent."},
+            {
+                "decision_id": decision.id,
+                "payment_link_succeeded": link_succeeded,
+                "recovered_revenue": str(recovery_case.recovered_revenue),
+            },
             now,
             "Simulated payment recovery link sent.",
         )
+        if link_succeeded:
+            self._record_audit(
+                session,
+                recovery_case.id,
+                AuditEventType.PAYMENT_RECOVERED,
+                {"payment_id": payment.id, "recovered_revenue": str(recovery_case.recovered_revenue)},
+            )
         return ActionExecutionResult(
             executed=True,
             action=decision.recommended_action,
             status=recovery_case.status,
-            reason="Simulated payment recovery link sent.",
+            reason=(
+                "Simulated payment link recovery succeeded."
+                if link_succeeded
+                else "Simulated payment recovery link sent."
+            ),
             recovered_revenue=recovery_case.recovered_revenue,
             recovery_action_id=action.id,
             executed_at=now,

@@ -12,6 +12,7 @@ This milestone includes:
 - Deterministic seed data with 80 failed payment recovery cases
 - Health-check endpoint
 - Clean AI provider boundary for later structured decisions
+- Batch recovery runs with deterministic, configurable simulated outcomes and run history
 
 ## Requirements
 
@@ -179,7 +180,7 @@ The policy engine enforces:
 The action executor is simulated:
 
 - `RETRY_PAYMENT` creates a payment attempt and simulates success or failure
-- `SEND_PAYMENT_LINK` records a simulated recovery message
+- `SEND_PAYMENT_LINK` simulates a payment-link recovery success or failure
 - `ESCALATE` marks the case as `ESCALATED`
 - `STOP` marks the case as `STOPPED`
 
@@ -206,6 +207,61 @@ Example approved execution response:
   }
 }
 ```
+
+## Step 5 Batch Recovery Simulation
+
+Run all eligible recovery cases through the existing AI analysis, policy engine, bounded executor,
+and audit services in one request:
+
+```bash
+curl -X POST http://localhost:8000/recovery/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "retry_success_probability": 0.65,
+    "payment_link_success_probability": 0.55,
+    "simulation_seed": "hackathon-demo",
+    "idempotency_key": "demo-run-001"
+  }'
+```
+
+The probabilities are deterministic: a case, action, seed, and probability always produce the same
+outcome. Set either probability to `1` to demonstrate guaranteed recovery or `0` for a guaranteed
+failed outcome. Defaults can also be configured in `.env`:
+
+```bash
+SIMULATION_SEED=revive-demo
+RETRY_SUCCESS_PROBABILITY=0.65
+PAYMENT_LINK_SUCCESS_PROBABILITY=0.55
+```
+
+Example response:
+
+```json
+{
+  "run_id": "7c0af9d1-58f0-48f7-a737-1be5be0e4c74",
+  "cases_processed": 80,
+  "actions_executed": 72,
+  "recovered_cases": 45,
+  "escalated_cases": 14,
+  "stopped_cases": 0,
+  "revenue_at_risk": "48500.00",
+  "revenue_recovered": "31200.00",
+  "recovery_rate": "0.6433"
+}
+```
+
+`recovery_rate` is a backend-calculated ratio (`revenue_recovered / revenue_at_risk`), rounded to
+four decimal places. Each run is persisted and may be reviewed with:
+
+```bash
+curl http://localhost:8000/recovery/runs
+curl http://localhost:8000/dashboard/metrics
+```
+
+To demonstrate the full flow locally, run migrations, seed the data, start the API, then invoke
+`POST /recovery/run` with a fixed seed. Repeating the same request with its `idempotency_key`
+returns the original run without executing another action. A later request without that key only
+processes cases that have not already reached an executed or policy-blocked action.
 
 Example rejected execution response:
 

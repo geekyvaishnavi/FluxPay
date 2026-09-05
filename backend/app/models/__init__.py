@@ -5,6 +5,7 @@ from app.models.payment import Payment
 from app.models.payment_attempt import PaymentAttempt
 from app.models.recovery_action import RecoveryAction
 from app.models.recovery_case import RecoveryCase
+from app.models.recovery_run import RecoveryRun
 
 __all__ = [
     "AgentDecision",
@@ -14,4 +15,5 @@ __all__ = [
     "PaymentAttempt",
     "RecoveryAction",
     "RecoveryCase",
+    "RecoveryRun",
 ]

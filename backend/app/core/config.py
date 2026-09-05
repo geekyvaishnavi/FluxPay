@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     api_port: int = 8000
     llm_provider: str = "stub"
     cors_origins: list[str] = ["http://localhost:5173"]
+    simulation_seed: str = "revive-demo"
+    retry_success_probability: float = 0.65
+    payment_link_success_probability: float = 0.55
 
 
 settings = Settings()
