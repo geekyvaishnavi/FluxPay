@@ -4,7 +4,11 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models import Customer, Payment, PaymentAttempt, RecoveryCase
+from app.schemas.ai_decision import AgentAnalysisResponse
 from app.schemas.recovery import RecoveryCaseListItem
+from app.services.agent_analysis import analyze_recovery_case
+from app.services.ai.factory import get_llm_provider
+from app.services.ai.provider import LLMProvider
 
 router = APIRouter(prefix="/recovery", tags=["recovery"])
 
@@ -42,3 +46,12 @@ def list_recovery_cases(session: Session = Depends(get_db)):
         )
 
     return response
+
+
+@router.post("/cases/{case_id}/analyze", response_model=AgentAnalysisResponse)
+def analyze_case(
+    case_id: str,
+    session: Session = Depends(get_db),
+    provider: LLMProvider = Depends(get_llm_provider),
+):
+    return analyze_recovery_case(session=session, recovery_case_id=case_id, provider=provider)

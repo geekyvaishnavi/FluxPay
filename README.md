@@ -1,6 +1,6 @@
-# FluxPay - AI Revenue Recovery Agent
+# Revive - AI Revenue Recovery Agent
 
-FluxPay is a hackathon MVP for detecting failed payments, preparing recovery cases, and laying the foundation for an AI-guided revenue recovery workflow.
+Revive is a hackathon MVP for detecting failed payments, preparing recovery cases, and laying the foundation for an AI-guided revenue recovery workflow.
 
 This milestone includes:
 
@@ -114,3 +114,42 @@ Database health:
 ```bash
 curl http://localhost:8000/health/db
 ```
+
+## Step 3 AI Diagnosis
+
+The agent provider is configured through environment variables:
+
+```bash
+LLM_PROVIDER=stub
+```
+
+The current `stub` provider returns deterministic structured JSON for local development and tests.
+Provider-specific API keys should be added only inside provider-specific implementations, not in API
+route handlers.
+
+Analyze a detected recovery case:
+
+```bash
+curl -X POST http://localhost:8000/recovery/cases/{case_id}/analyze
+```
+
+Example response:
+
+```json
+{
+  "decision_id": "decision-id",
+  "recovery_case_id": "case-id",
+  "status": "ACTION_REQUIRED",
+  "decision": {
+    "diagnosis": "temporary_payment_failure",
+    "risk_level": "LOW",
+    "recommended_action": "RETRY_PAYMENT",
+    "delay_hours": 24,
+    "confidence": 0.82,
+    "reason": "The customer has a strong prior payment history and this looks recoverable."
+  }
+}
+```
+
+At this stage the agent only recommends an action. It does not execute payments, send emails, run
+retries, or modify the database directly outside the backend service workflow.

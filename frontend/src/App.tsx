@@ -27,7 +27,7 @@ export function App() {
               <Activity size={20} />
             </div>
             <div>
-              <h1 className="text-lg font-semibold">FluxPay</h1>
+              <h1 className="text-lg font-semibold">Revive</h1>
               <p className="text-sm text-slate-500">AI Revenue Recovery Agent</p>
             </div>
           </div>

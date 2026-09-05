@@ -2,13 +2,14 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
 
 def find_env_file() -> Path:
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / ".env"
-        if candidate.exists():
-            return candidate
-    return Path(__file__).resolve().parents[2] / ".env"
+    root_env = PROJECT_ROOT / ".env"
+    if root_env.exists():
+        return root_env
+    return Path.cwd() / ".env"
 
 
 class Settings(BaseSettings):
@@ -18,7 +19,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    database_url: str = "postgresql+psycopg://FluxPay:FluxPay@localhost:5432/FluxPay"
+    database_url: str = "postgresql+psycopg://revive:revive@localhost:5432/revive"
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     llm_provider: str = "stub"

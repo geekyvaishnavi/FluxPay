@@ -19,6 +19,7 @@ from app.models.enums import (
     DecisionStatus,
     FailureReason,
     PaymentStatus,
+    RiskLevel,
     RecoveryActionStatus,
     RecoveryActionType,
     RecoveryCaseStatus,
@@ -130,13 +131,20 @@ def seed_database() -> None:
                     model="stub-recovery-v1",
                     recommended_action=recommended_action,
                     diagnosis=f"Seed diagnosis for {failure_reason.value.lower()} on invoice {payment.invoice_number}.",
-                    confidence="MEDIUM",
+                    risk_level=RiskLevel.MEDIUM,
+                    delay_hours=24,
+                    confidence=Decimal("0.7500"),
+                    reason="Seeded decision for demo data.",
                     status=DecisionStatus.VALIDATED,
                     raw_response={
                         "diagnosis": failure_reason.value,
+                        "risk_level": RiskLevel.MEDIUM.value,
                         "recommended_action": recommended_action.value,
-                        "confidence": "MEDIUM",
+                        "delay_hours": 24,
+                        "confidence": 0.75,
+                        "reason": "Seeded decision for demo data.",
                     },
+                    context_snapshot={"source": "seed"},
                 )
             )
             session.add(
@@ -167,4 +175,4 @@ def seed_database() -> None:
 if __name__ == "__main__":
     reset_database()
     seed_database()
-    print("Seeded FluxPay database with 10 customers and 80 recovery cases.")
+    print("Seeded Revive database with 10 customers and 80 recovery cases.")

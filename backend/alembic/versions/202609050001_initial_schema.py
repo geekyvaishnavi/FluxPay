@@ -43,7 +43,11 @@ def upgrade() -> None:
     )
     decision_status = sa.Enum("PROPOSED", "VALIDATED", "REJECTED", name="decision_status")
     audit_event_type = sa.Enum(
-        "CASE_CREATED", "PAYMENT_FAILED", "ACTION_SEEDED", "DECISION_SEEDED", name="audit_event_type"
+        "CASE_CREATED",
+        "PAYMENT_FAILED",
+        "ACTION_SEEDED",
+        "DECISION_SEEDED",
+        name="audit_event_type",
     )
 
     op.create_table(
