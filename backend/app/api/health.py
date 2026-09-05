@@ -9,7 +9,7 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 def health_check() -> dict[str, str]:
-    return {"status": "ok", "service": "revive-api"}
+    return {"status": "ok", "service": "FluxPay-api"}
 
 
 @router.get("/health/db")

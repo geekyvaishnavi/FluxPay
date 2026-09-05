@@ -1,6 +1,6 @@
-# Revive - AI Revenue Recovery Agent
+# FluxPay - AI Revenue Recovery Agent
 
-Revive is a hackathon MVP for detecting failed payments, preparing recovery cases, and laying the foundation for an AI-guided revenue recovery workflow.
+FluxPay is a hackathon MVP for detecting failed payments, preparing recovery cases, and laying the foundation for an AI-guided revenue recovery workflow.
 
 This milestone includes:
 

@@ -18,7 +18,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    database_url: str = "postgresql+psycopg://revive:revive@localhost:5432/revive"
+    database_url: str = "postgresql+psycopg://FluxPay:FluxPay@localhost:5432/FluxPay"
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     llm_provider: str = "stub"
