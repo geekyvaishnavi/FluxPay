@@ -26,7 +26,7 @@ class SuccessfulFakeProvider(LLMProvider):
     model_name = "fake-recovery-model"
 
     def diagnose_recovery_case(self, context: dict[str, Any]) -> Mapping[str, Any]:
-        assert context["customer"]["email"] == "maya@example.com"
+        assert context["customer"]["segment"] == "NEW_OR_AT_RISK"
         assert context["payment"]["amount"] == "250.00"
         assert context["latest_failure_reason"] == FailureReason.INSUFFICIENT_FUNDS.value
         return {
@@ -35,6 +35,7 @@ class SuccessfulFakeProvider(LLMProvider):
             "recommended_action": "RETRY_PAYMENT",
             "delay_hours": 24,
             "confidence": 0.91,
+            "expected_recovery_probability": 0.78,
             "reason": "Customer has a strong payment history with only one previous failure.",
         }
 
@@ -100,6 +101,7 @@ def test_successful_ai_analysis_persists_decision_and_updates_case(
         "recommended_action": "RETRY_PAYMENT",
         "delay_hours": 24,
         "confidence": 0.91,
+        "expected_recovery_probability": 0.78,
         "reason": "Customer has a strong payment history with only one previous failure.",
     }
 
@@ -164,8 +166,9 @@ def test_agent_decision_persistence_contains_audit_context(
     assert decision.recommended_action == "RETRY_PAYMENT"
     assert decision.delay_hours == 24
     assert decision.confidence == Decimal("0.9100")
+    assert decision.expected_recovery_probability == Decimal("0.7800")
     assert decision.reason == "Customer has a strong payment history with only one previous failure."
-    assert decision.context_snapshot["customer"]["email"] == "maya@example.com"
+    assert decision.context_snapshot["customer"]["segment"] == "NEW_OR_AT_RISK"
     assert decision.raw_response["recommended_action"] == "RETRY_PAYMENT"
 
 
@@ -245,3 +248,96 @@ def test_context_builder_counts_customer_payment_history(
     assert decision is not None
     assert decision.context_snapshot["previous_successful_payments"] == 2
     assert decision.context_snapshot["previous_payment_failures"] == 1
+    assert decision.context_snapshot["customer_lifetime_value"] == "375.00"
+    assert decision.context_snapshot["total_successful_payments"] == 2
+    assert decision.context_snapshot["current_retry_count"] == 1
+    assert decision.context_snapshot["customer_segment"] == "NEW_OR_AT_RISK"
+
+
+class InvalidProbabilityFakeProvider(LLMProvider):
+    provider_name = "fake"
+    model_name = "invalid-probability"
+
+    def diagnose_recovery_case(self, context: dict[str, Any]) -> Mapping[str, Any]:
+        return {
+            "diagnosis": "temporary_insufficient_funds",
+            "risk_level": "LOW",
+            "recommended_action": "RETRY_PAYMENT",
+            "delay_hours": 24,
+            "confidence": 0.91,
+            "expected_recovery_probability": 1.1,
+            "reason": "Invalid probability test.",
+        }
+
+
+def test_invalid_or_missing_expected_probability_is_rejected(
+    client: TestClient, session: Session, payment: Payment
+) -> None:
+    recovery_case = create_failed_case(session, payment)
+    client.app.dependency_overrides[get_llm_provider] = override_provider(
+        InvalidProbabilityFakeProvider()
+    )
+
+    invalid_response = client.post(f"/recovery/cases/{recovery_case.id}/analyze")
+
+    assert invalid_response.status_code == 502
+    assert session.scalar(select(AgentDecision).where(AgentDecision.recovery_case_id == recovery_case.id)) is None
+
+
+class MissingProbabilityFakeProvider(LLMProvider):
+    provider_name = "fake"
+    model_name = "missing-probability"
+
+    def diagnose_recovery_case(self, context: dict[str, Any]) -> Mapping[str, Any]:
+        return {
+            "diagnosis": "temporary_insufficient_funds",
+            "risk_level": "LOW",
+            "recommended_action": "RETRY_PAYMENT",
+            "delay_hours": 24,
+            "confidence": 0.91,
+            "reason": "Missing probability test.",
+        }
+
+
+def test_missing_expected_probability_is_rejected(
+    client: TestClient, session: Session, payment: Payment
+) -> None:
+    recovery_case = create_failed_case(session, payment)
+    client.app.dependency_overrides[get_llm_provider] = override_provider(
+        MissingProbabilityFakeProvider()
+    )
+
+    response = client.post(f"/recovery/cases/{recovery_case.id}/analyze")
+
+    assert response.status_code == 502
+
+
+class HighRiskRetryFakeProvider(LLMProvider):
+    provider_name = "fake"
+    model_name = "high-risk-retry"
+
+    def diagnose_recovery_case(self, context: dict[str, Any]) -> Mapping[str, Any]:
+        return {
+            "diagnosis": "high_risk_payment_failure",
+            "risk_level": "HIGH",
+            "recommended_action": "RETRY_PAYMENT",
+            "delay_hours": 24,
+            "confidence": 0.88,
+            "expected_recovery_probability": 0.62,
+            "reason": "Mock agent recommendation for policy guardrail coverage.",
+        }
+
+
+def test_policy_can_reject_a_valid_ai_strategy(
+    client: TestClient, session: Session, payment: Payment
+) -> None:
+    recovery_case = create_failed_case(session, payment)
+    client.app.dependency_overrides[get_llm_provider] = override_provider(HighRiskRetryFakeProvider())
+
+    analysis = client.post(f"/recovery/cases/{recovery_case.id}/analyze")
+    execution = client.post(f"/recovery/cases/{recovery_case.id}/execute")
+
+    assert analysis.status_code == 200
+    assert execution.status_code == 200
+    assert execution.json()["executed"] is False
+    assert execution.json()["reason"] == "HIGH-risk cases require manual approval before automated action."

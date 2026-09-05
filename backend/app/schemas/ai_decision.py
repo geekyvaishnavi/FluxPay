@@ -11,6 +11,7 @@ class AgentDecisionOutput(BaseModel):
     recommended_action: RecoveryActionType
     delay_hours: int = Field(ge=0, le=720)
     confidence: float = Field(ge=0, le=1)
+    expected_recovery_probability: float = Field(ge=0, le=1)
     reason: str = Field(min_length=1)
 
 
@@ -23,6 +24,14 @@ class AgentContext(BaseModel):
     previous_payment_failures: int
     previous_successful_payments: int
     previous_recovery_attempts: int
+    previous_recovery_outcomes: dict
+    customer_lifetime_value: str
+    total_successful_payments: int
+    total_failed_payments: int
+    average_payment_delay_hours: float
+    consecutive_successful_payments: int
+    current_retry_count: int
+    customer_segment: str
 
 
 class AgentAnalysisResponse(BaseModel):

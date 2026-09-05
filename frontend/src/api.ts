@@ -21,7 +21,7 @@ export type CaseDetail = {
   customer: { name: string; email: string; company_name: string | null; status: string };
   payment: { invoice_number: string; amount: string; currency: string; status: string; due_at: string; failure_reason: string | null };
   payment_history: { attempt_count: number; failed_attempts: number; latest_attempt_at: string | null; previous_successful_payments: number; previous_payment_failures: number };
-  decision: { diagnosis: string; risk_level: string; recommended_action: string; confidence: string; reason: string; delay_hours: number; created_at: string } | null;
+  decision: { diagnosis: string; risk_level: string; recommended_action: string; confidence: string; expected_recovery_probability: string; reason: string; delay_hours: number; created_at: string } | null;
   policy_result: { allowed?: boolean; action?: string; reason?: string } | null;
   actions: Array<{ action_type: string; status: string; reason: string; result: Record<string, unknown>; executed_at: string | null; created_at: string }>;
   audit_events: Array<{ event_type: string; actor: string; created_at: string }>;

@@ -43,6 +43,7 @@ def analyze_recovery_case(
         risk_level=decision_output.risk_level,
         delay_hours=decision_output.delay_hours,
         confidence=Decimal(str(decision_output.confidence)),
+        expected_recovery_probability=Decimal(str(decision_output.expected_recovery_probability)),
         reason=decision_output.reason,
         status=DecisionStatus.VALIDATED,
         raw_response=raw_response,
@@ -61,6 +62,7 @@ def analyze_recovery_case(
                 "recommended_action": decision_output.recommended_action.value,
                 "risk_level": decision_output.risk_level.value,
                 "confidence": decision_output.confidence,
+                "expected_recovery_probability": decision_output.expected_recovery_probability,
             },
         )
     )

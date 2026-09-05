@@ -290,6 +290,15 @@ backend policy decision, executed action outcomes, recovered revenue, and chrono
 events. It never exposes provider credentials or gives the frontend authority to calculate or alter
 recovery results.
 
+## Recovery Strategy Scoring
+
+AI decisions also include an `expected_recovery_probability`, distinct from decision `confidence`.
+The backend supplies the agent with focused payment and customer behavior context (lifetime value,
+success/failure history, recovery outcomes, payment delays, retry count, and customer segment), then
+validates the structured response before persisting it. Dashboard metrics expose the average AI
+estimate alongside actual recovery performance; policy evaluation and revenue calculations remain
+backend-controlled.
+
 Example rejected execution response:
 
 ```json

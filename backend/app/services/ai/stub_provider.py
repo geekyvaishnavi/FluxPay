@@ -18,24 +18,28 @@ class StubLLMProvider(LLMProvider):
             diagnosis = "expired_payment_method"
             risk_level = "MEDIUM"
             delay_hours = 0
+            expected_recovery_probability = 0.68
             reason = "The saved payment method is expired, so the customer needs an updated payment link."
         elif previous_failures >= 3:
             action = RecoveryActionType.ESCALATE.value
             diagnosis = "repeated_payment_failures"
             risk_level = "HIGH"
             delay_hours = 0
+            expected_recovery_probability = 0.22
             reason = "The customer has repeated payment failures and should be reviewed before more automation."
         elif previous_successes >= 2:
             action = RecoveryActionType.RETRY_PAYMENT.value
             diagnosis = "temporary_payment_failure"
             risk_level = "LOW"
             delay_hours = 24
+            expected_recovery_probability = 0.78
             reason = "The customer has a strong prior payment history and this looks recoverable."
         else:
             action = RecoveryActionType.RETRY_PAYMENT.value
             diagnosis = "temporary_payment_failure"
             risk_level = "MEDIUM"
             delay_hours = 24
+            expected_recovery_probability = 0.55
             reason = "The failure may be recoverable with a delayed retry recommendation."
 
         return {
@@ -44,5 +48,6 @@ class StubLLMProvider(LLMProvider):
             "recommended_action": action,
             "delay_hours": delay_hours,
             "confidence": 0.82,
+            "expected_recovery_probability": expected_recovery_probability,
             "reason": reason,
         }

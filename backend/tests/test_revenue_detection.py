@@ -154,4 +154,7 @@ def test_dashboard_metrics_are_calculated_by_backend(
         "retrying_cases": 0,
         "escalated_cases": 0,
         "stopped_cases": 1,
+        "average_expected_recovery_probability": "0.0000",
+        "expected_recovery_rate": "0.00",
+        "expected_vs_actual_recovery": "50.00",
     }

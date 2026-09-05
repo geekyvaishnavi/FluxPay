@@ -41,6 +41,7 @@ class BatchProvider(LLMProvider):
             "recommended_action": action,
             "delay_hours": 24,
             "confidence": 0.9,
+            "expected_recovery_probability": 0.75,
             "reason": "Batch test decision.",
         }
 
@@ -197,3 +198,6 @@ def test_run_history_and_dashboard_include_batch_results(
     assert metrics.json()["total_recovery_cases"] == 1
     assert metrics.json()["total_recovered_revenue"] == "250.00"
     assert metrics.json()["recovered_cases"] == 1
+    assert metrics.json()["average_expected_recovery_probability"] == "0.7500"
+    assert metrics.json()["expected_recovery_rate"] == "75.00"
+    assert metrics.json()["expected_vs_actual_recovery"] == "25.00"

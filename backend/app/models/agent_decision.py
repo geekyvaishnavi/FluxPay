@@ -25,6 +25,9 @@ class AgentDecision(Base):
     risk_level: Mapped[RiskLevel] = mapped_column(Enum(RiskLevel, name="risk_level"), nullable=False)
     delay_hours: Mapped[int] = mapped_column(nullable=False)
     confidence: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
+    expected_recovery_probability: Mapped[Decimal] = mapped_column(
+        Numeric(5, 4), nullable=False, default=Decimal("0.0000")
+    )
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[DecisionStatus] = mapped_column(
         Enum(DecisionStatus, name="decision_status"), nullable=False, default=DecisionStatus.PROPOSED

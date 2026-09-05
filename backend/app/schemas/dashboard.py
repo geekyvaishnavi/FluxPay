@@ -13,3 +13,6 @@ class DashboardMetrics(BaseModel):
     retrying_cases: int
     escalated_cases: int
     stopped_cases: int
+    average_expected_recovery_probability: Decimal
+    expected_recovery_rate: Decimal
+    expected_vs_actual_recovery: Decimal

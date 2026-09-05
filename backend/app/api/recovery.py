@@ -154,6 +154,7 @@ def get_recovery_case(case_id: str, session: Session = Depends(get_db)):
                 "risk_level": decision.risk_level.value,
                 "recommended_action": decision.recommended_action.value,
                 "confidence": str(decision.confidence),
+                "expected_recovery_probability": str(decision.expected_recovery_probability),
                 "reason": decision.reason,
                 "delay_hours": decision.delay_hours,
                 "created_at": decision.created_at,
