@@ -13,6 +13,12 @@ class RecoveryRun(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     idempotency_key: Mapped[str | None] = mapped_column(String(128), unique=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="COMPLETED")
+    total_cases: Mapped[int] = mapped_column(nullable=False, default=0)
+    processed_cases: Mapped[int] = mapped_column(nullable=False, default=0)
+    failed_cases: Mapped[int] = mapped_column(nullable=False, default=0)
+    current_case_id: Mapped[str | None] = mapped_column(String(36))
+    demo_mode: Mapped[bool] = mapped_column(nullable=False, default=False)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cases_processed: Mapped[int] = mapped_column(nullable=False, default=0)

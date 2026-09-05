@@ -120,6 +120,11 @@ def test_batch_processes_cases_and_persists_metrics(
         select(AuditLog.event_type).where(AuditLog.recovery_case_id == blocked_case.id)
     ).all()
     assert AuditEventType.POLICY_REJECTED in policy_events
+    progress = client.get(f"/recovery/runs/{response.json()['run_id']}/progress")
+    assert progress.status_code == 200
+    assert progress.json()["status"] == "COMPLETED"
+    assert progress.json()["processed_cases"] == 4
+    assert progress.json()["total_cases"] == 4
 
 
 def test_batch_failed_recovery_and_repeated_execution_are_idempotent(

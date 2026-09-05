@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import UTC, datetime
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
 from app.models import (
     AgentDecision,
     AuditLog,
@@ -16,14 +18,15 @@ from app.models import (
 from app.schemas.ai_decision import AgentAnalysisResponse
 from app.schemas.execution import ActionExecutionResult
 from app.schemas.recovery import AuditActivityItem, RecoveryCaseDetail, RecoveryCaseListItem
-from app.schemas.recovery_run import RecoveryRunHistoryItem, RecoveryRunRequest, RecoveryRunSummary
+from app.schemas.recovery_run import RecoveryRunHistoryItem, RecoveryRunProgress, RecoveryRunRequest, RecoveryRunSummary
 from app.services.agent_analysis import analyze_recovery_case
 from app.services.action_executor import ActionExecutor, get_action_executor
 from app.services.ai.factory import get_llm_provider
 from app.services.ai.provider import LLMProvider
 from app.services.policy.rules import PolicyEngine, get_policy_engine
 from app.services.recovery_execution import execute_recovery_case
-from app.services.recovery_batch import run_recovery_batch
+from app.services.recovery_batch import recovery_run_progress, run_recovery_batch
+from app.services.demo_data import reset_demo_dataset
 
 router = APIRouter(prefix="/recovery", tags=["recovery"])
 
@@ -272,6 +275,55 @@ def run_recovery(
         policy_engine=policy_engine,
         action_executor=action_executor,
     )
+
+
+@router.post("/run/live", response_model=RecoveryRunProgress, status_code=202)
+def start_live_recovery(
+    request: RecoveryRunRequest | None = None,
+    background_tasks: BackgroundTasks = None,
+    session: Session = Depends(get_db),
+):
+    recovery_request = request or RecoveryRunRequest()
+    recovery_run = RecoveryRun(
+        idempotency_key=recovery_request.idempotency_key,
+        started_at=datetime.now(UTC).replace(microsecond=0),
+        status="QUEUED",
+        demo_mode=recovery_request.demo_mode,
+    )
+    session.add(recovery_run)
+    session.commit()
+    session.refresh(recovery_run)
+    background_tasks.add_task(_run_live_recovery, recovery_run.id, recovery_request)
+    return recovery_run_progress(recovery_run)
+
+
+def _run_live_recovery(recovery_run_id: str, request: RecoveryRunRequest) -> None:
+    from app.services.action_executor import get_action_executor
+    from app.services.ai.factory import get_llm_provider
+    from app.services.policy.rules import get_policy_engine
+
+    with SessionLocal() as session:
+        run_recovery_batch(
+            session=session,
+            request=request,
+            provider=get_llm_provider(),
+            policy_engine=get_policy_engine(),
+            action_executor=get_action_executor(),
+            recovery_run_id=recovery_run_id,
+        )
+
+
+@router.get("/runs/{run_id}/progress", response_model=RecoveryRunProgress)
+def get_recovery_run_progress(run_id: str, session: Session = Depends(get_db)):
+    recovery_run = session.get(RecoveryRun, run_id)
+    if recovery_run is None:
+        raise HTTPException(status_code=404, detail="Recovery run not found")
+    return recovery_run_progress(recovery_run)
+
+
+@router.post("/demo/reset")
+def reset_demo(session: Session = Depends(get_db)):
+    return reset_demo_dataset(session)
 
 
 @router.get("/runs", response_model=list[RecoveryRunHistoryItem])

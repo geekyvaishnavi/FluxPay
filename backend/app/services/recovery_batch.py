@@ -25,33 +25,49 @@ def run_recovery_batch(
     provider: LLMProvider,
     policy_engine: PolicyEngine,
     action_executor: ActionExecutor,
+    recovery_run_id: str | None = None,
 ) -> RecoveryRunSummary:
-    if request.idempotency_key:
+    if recovery_run_id is None and request.idempotency_key:
         existing_run = session.scalar(
             select(RecoveryRun).where(RecoveryRun.idempotency_key == request.idempotency_key)
         )
         if existing_run is not None:
             return _summary(existing_run)
 
-    recovery_run = RecoveryRun(
-        idempotency_key=request.idempotency_key,
-        started_at=datetime.now(UTC).replace(microsecond=0),
-    )
-    session.add(recovery_run)
-    session.commit()
+    if recovery_run_id is not None:
+        recovery_run = session.get(RecoveryRun, recovery_run_id)
+        if recovery_run is None:
+            raise HTTPException(status_code=404, detail="Recovery run not found")
+        recovery_run.status = "RUNNING"
+        session.commit()
+    else:
+        recovery_run = RecoveryRun(
+            idempotency_key=request.idempotency_key,
+            started_at=datetime.now(UTC).replace(microsecond=0),
+            status="RUNNING",
+            demo_mode=request.demo_mode,
+        )
+        session.add(recovery_run)
+        session.commit()
 
     executor = _configured_executor(action_executor, request)
     eligible_cases = _eligible_cases(session)
     eligible_case_ids = [case.id for case in eligible_cases]
     recovery_run.cases_processed = len(eligible_cases)
+    recovery_run.total_cases = len(eligible_cases)
     recovery_run.revenue_at_risk = _money(sum((case.revenue_at_risk for case in eligible_cases), Decimal()))
     session.commit()
 
     for recovery_case in eligible_cases:
+        recovery_run.current_case_id = recovery_case.id
+        session.commit()
         if not _has_decision(session, recovery_case):
             try:
                 analyze_recovery_case(session, recovery_case.id, provider)
             except HTTPException:
+                recovery_run.processed_cases += 1
+                recovery_run.failed_cases += 1
+                session.commit()
                 continue
 
         try:
@@ -62,10 +78,14 @@ def run_recovery_batch(
                 action_executor=executor,
             )
         except HTTPException:
+            recovery_run.processed_cases += 1
+            recovery_run.failed_cases += 1
+            session.commit()
             continue
         if result.executed and not result.idempotent:
             recovery_run.actions_executed += 1
-            session.commit()
+        recovery_run.processed_cases += 1
+        session.commit()
 
     session.expire_all()
     processed_cases = session.scalars(
@@ -85,6 +105,8 @@ def run_recovery_batch(
         recovery_run.revenue_recovered, recovery_run.revenue_at_risk
     )
     recovery_run.finished_at = datetime.now(UTC).replace(microsecond=0)
+    recovery_run.current_case_id = None
+    recovery_run.status = "COMPLETED"
     session.commit()
     session.refresh(recovery_run)
     return _summary(recovery_run)
@@ -177,4 +199,17 @@ def _summary(recovery_run: RecoveryRun) -> RecoveryRunSummary:
         revenue_at_risk=recovery_run.revenue_at_risk,
         revenue_recovered=recovery_run.revenue_recovered,
         recovery_rate=recovery_run.recovery_rate,
+    )
+
+
+def recovery_run_progress(recovery_run: RecoveryRun):
+    from app.schemas.recovery_run import RecoveryRunProgress
+
+    return RecoveryRunProgress(
+        **_summary(recovery_run).model_dump(),
+        status=recovery_run.status,
+        total_cases=recovery_run.total_cases,
+        processed_cases=recovery_run.processed_cases,
+        failed_cases=recovery_run.failed_cases,
+        current_case_id=recovery_run.current_case_id,
     )

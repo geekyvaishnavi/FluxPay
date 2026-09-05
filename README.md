@@ -290,6 +290,24 @@ backend policy decision, executed action outcomes, recovered revenue, and chrono
 events. It never exposes provider credentials or gives the frontend authority to calculate or alter
 recovery results.
 
+## Judge Demo Mode
+
+With the backend and frontend running, open `http://localhost:5173` and use this repeatable flow:
+
+1. Click **Reset Demo** and confirm. This recreates six deterministic `DEMO-` customer scenarios
+   without deleting non-demo records.
+2. Review the queue: it includes strong-history, high-value, expired-card, network-failure, and
+   repeated-failure cases.
+3. Click **Run AI Recovery**. The dashboard polls the persisted run progress and displays processed,
+   recovered, failed, escalated, and recovered-revenue totals while the existing recovery pipeline
+   runs.
+4. Open a case to show the agent explanation, policy decision, audit timeline, and actual outcome.
+5. Use the completed summary and KPI cards to compare AI estimates with actual recovered revenue.
+
+The supporting APIs are `POST /recovery/demo/reset`, `POST /recovery/run/live`, and
+`GET /recovery/runs/{run_id}/progress`. The standard synchronous `POST /recovery/run` remains
+available for API clients and tests.
+
 ## Recovery Strategy Scoring
 
 AI decisions also include an `expected_recovery_probability`, distinct from decision `confidence`.

@@ -4,6 +4,7 @@ export type DashboardMetrics = {
   total_revenue_at_risk: string; total_recovered_revenue: string; recovery_rate: string;
   active_recovery_cases: number; total_recovery_cases: number; recovered_cases: number;
   retrying_cases: number; escalated_cases: number; stopped_cases: number;
+  average_expected_recovery_probability: string; expected_recovery_rate: string; expected_vs_actual_recovery: string;
 };
 export type RecoveryCase = {
   id: string; customer_name: string; customer_email: string; invoice_number: string;
@@ -16,6 +17,7 @@ export type RecoveryRun = {
   revenue_at_risk: string; revenue_recovered: string; recovery_rate: string;
 };
 export type RecoveryRunSummary = Omit<RecoveryRun, 'started_at' | 'finished_at'>;
+export type RecoveryRunProgress = RecoveryRunSummary & { status: string; total_cases: number; processed_cases: number; failed_cases: number; current_case_id: string | null };
 export type CaseDetail = {
   id: string; status: string; revenue_at_risk: string; recovered_revenue: string; opened_at: string; closed_at: string | null;
   customer: { name: string; email: string; company_name: string | null; status: string };
@@ -44,4 +46,7 @@ export const api = {
   getCase: (caseId: string) => request<CaseDetail>(`/recovery/cases/${caseId}`), getRuns: () => request<RecoveryRun[]>('/recovery/runs'),
   getAuditActivity: () => request<AuditActivity[]>('/recovery/audit-activity'),
   runRecovery: () => request<RecoveryRunSummary>('/recovery/run', { method: 'POST', body: '{}' }),
+  startLiveRecovery: () => request<RecoveryRunProgress>('/recovery/run/live', { method: 'POST', body: '{}' }),
+  getRunProgress: (runId: string) => request<RecoveryRunProgress>(`/recovery/runs/${runId}/progress`),
+  resetDemo: () => request<{ customers: number; recovery_cases: number }>('/recovery/demo/reset', { method: 'POST', body: '{}' }),
 };
