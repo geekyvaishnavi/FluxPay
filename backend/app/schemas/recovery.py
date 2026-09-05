@@ -3,7 +3,13 @@ from decimal import Decimal
 
 from pydantic import BaseModel
 
-from app.models.enums import FailureReason, RecoveryCaseStatus
+from app.models.enums import (
+    FailureReason,
+    RecoveryActionStatus,
+    RecoveryActionType,
+    RecoveryCaseStatus,
+    RiskLevel,
+)
 
 
 class RecoveryCaseCreatedResponse(BaseModel):
@@ -25,4 +31,30 @@ class RecoveryCaseListItem(BaseModel):
     failure_reason: FailureReason | None
     revenue_at_risk: Decimal
     status: RecoveryCaseStatus
+    created_at: datetime
+    risk_level: RiskLevel | None = None
+    recommended_action: RecoveryActionType | None = None
+
+
+class RecoveryCaseDetail(BaseModel):
+    id: str
+    status: RecoveryCaseStatus
+    revenue_at_risk: Decimal
+    recovered_revenue: Decimal
+    opened_at: datetime
+    closed_at: datetime | None
+    customer: dict
+    payment: dict
+    payment_history: dict
+    decision: dict | None
+    policy_result: dict | None
+    actions: list[dict]
+
+
+class AuditActivityItem(BaseModel):
+    id: str
+    recovery_case_id: str | None
+    event_type: str
+    actor: str
+    details: dict
     created_at: datetime

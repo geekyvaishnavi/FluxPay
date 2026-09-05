@@ -1,6 +1,6 @@
-# Revive - AI Revenue Recovery Agent
+# FluxPay - AI Revenue Recovery Agent
 
-Revive is a hackathon MVP for detecting failed payments, preparing recovery cases, and laying the foundation for an AI-guided revenue recovery workflow.
+FluxPay is a hackathon MVP for detecting failed payments, preparing recovery cases, and laying the foundation for an AI-guided revenue recovery workflow.
 
 This milestone includes:
 
@@ -229,7 +229,7 @@ outcome. Set either probability to `1` to demonstrate guaranteed recovery or `0`
 failed outcome. Defaults can also be configured in `.env`:
 
 ```bash
-SIMULATION_SEED=revive-demo
+SIMULATION_SEED=FluxPay-demo
 RETRY_SUCCESS_PROBABILITY=0.65
 PAYMENT_LINK_SUCCESS_PROBABILITY=0.55
 ```
@@ -262,6 +262,27 @@ To demonstrate the full flow locally, run migrations, seed the data, start the A
 `POST /recovery/run` with a fixed seed. Repeating the same request with its `idempotency_key`
 returns the original run without executing another action. A later request without that key only
 processes cases that have not already reached an executed or policy-blocked action.
+
+## Dashboard
+
+The React dashboard consumes the live backend APIs for metrics, recovery cases, batch runs, audit
+activity, and case detail. Start the backend (after migrations and seed data) and then the frontend:
+
+```bash
+cd backend
+source .venv/bin/activate
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+```bash
+cd frontend
+npm run dev
+```
+
+Open `http://localhost:5173`. The Vite client expects the API at `http://localhost:8000`; override
+that address with `VITE_API_BASE_URL` when needed. Click a recovery case to inspect its customer,
+payment history, AI recommendation, policy result, and actions. Click **Run AI Recovery** to launch
+a batch, then observe the refreshed KPI cards, case statuses, batch history, and audit activity.
 
 Example rejected execution response:
 

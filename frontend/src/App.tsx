@@ -1,103 +1,33 @@
-import { Activity, AlertTriangle, Bot, CheckCircle2, Database, ShieldCheck } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Activity, AlertCircle, ArrowUpRight, Bot, CheckCircle2, ChevronRight, CircleDollarSign, Clock3, Play, RefreshCw, ShieldCheck, WalletCards, X } from 'lucide-react';
+import { api, type AuditActivity, type CaseDetail, type DashboardMetrics, type RecoveryCase, type RecoveryRun, type RecoveryRunSummary } from './api';
 
-const workflowSteps = [
-  'Failed Payment',
-  'Revenue-at-Risk Detection',
-  'Customer Context',
-  'AI Diagnosis',
-  'Policy Validation',
-  'Recovery Action',
-  'Audit Trail',
-];
+const money = (value: string, currency = 'USD') => new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(Number(value));
+const dateTime = (value: string | null) => value ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value)) : '—';
+const label = (value: string | null) => value ? value.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Not analyzed';
+const unique = (values: Array<string | null>) => [...new Set(values.filter((value): value is string => Boolean(value)))];
 
-const metrics = [
-  { label: 'Seeded cases', value: '80' },
-  { label: 'Recovery actions', value: '4' },
-  { label: 'Policy limits', value: '3' },
-  { label: 'Provider mode', value: 'Stub' },
-];
+function Badge({ value }: { value: string | null }) {
+  const tone = value?.includes('RECOVERED') ? 'success' : value?.includes('ESCALATED') || value?.includes('HIGH') ? 'warning' : value?.includes('STOPPED') || value?.includes('BLOCKED') ? 'neutral' : 'info';
+  return <span className={`badge ${tone}`}>{label(value)}</span>;
+}
+function LoadingBlock({ label: loadingLabel = 'Loading dashboard data…' }: { label?: string }) { return <div className="loading-block"><RefreshCw size={18} className="spin" />{loadingLabel}</div>; }
+function Kpi({ icon, label: title, value, detail, tone }: { icon: ReactNode; label: string; value: string; detail: string; tone: string }) { return <article className={`kpi ${tone}`}><div className="kpi-icon">{icon}</div><p>{title}</p><strong>{value}</strong><span>{detail}</span></article>; }
+function Filter({ value, onChange, options, placeholder }: { value: string; onChange: (value: string) => void; options: string[]; placeholder: string }) { return <select value={value} onChange={(event) => onChange(event.target.value)} aria-label={placeholder}>{options.map((option) => <option key={option} value={option}>{option === 'ALL' ? placeholder : label(option)}</option>)}</select>; }
 
 export function App() {
-  return (
-    <main className="min-h-screen bg-[#f6f7f9] text-ink">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="grid h-9 w-9 place-items-center rounded bg-mint text-white">
-              <Activity size={20} />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold">Revive</h1>
-              <p className="text-sm text-slate-500">AI Revenue Recovery Agent</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            <Database size={16} />
-            Foundation MVP
-          </div>
-        </div>
-      </header>
-
-      <section className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:grid-cols-[1.25fr_0.75fr]">
-        <div>
-          <div className="mb-6 flex items-center gap-2 text-sm font-medium text-coral">
-            <AlertTriangle size={18} />
-            Failed-payment recovery workspace
-          </div>
-          <h2 className="max-w-3xl text-4xl font-semibold tracking-normal text-ink">
-            Detect revenue at risk and prepare validated recovery actions.
-          </h2>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-            This shell is wired for the first milestone: API health, database schema, migrations,
-            seed data, and a clean boundary for future LLM-driven decisions.
-          </p>
-
-          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {metrics.map((metric) => (
-              <div key={metric.label} className="rounded border border-slate-200 bg-white p-4">
-                <p className="text-sm text-slate-500">{metric.label}</p>
-                <p className="mt-2 text-2xl font-semibold">{metric.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <aside className="rounded border border-slate-200 bg-white p-5">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-4 font-medium">
-            <ShieldCheck size={18} className="text-mint" />
-            Guardrails
-          </div>
-          <div className="mt-4 space-y-4 text-sm text-slate-600">
-            <p>LLM output is structured and isolated behind a provider interface.</p>
-            <p>Backend services own validation, policy limits, financial calculations, and actions.</p>
-            <p>Payment processing is simulated for the hackathon MVP.</p>
-          </div>
-        </aside>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-6 pb-10">
-        <div className="rounded border border-slate-200 bg-white p-5">
-          <div className="mb-5 flex items-center gap-2 font-medium">
-            <Bot size={18} className="text-gold" />
-            Core Workflow
-          </div>
-          <div className="grid gap-3 md:grid-cols-7">
-            {workflowSteps.map((step, index) => (
-              <div key={step} className="min-h-28 rounded border border-slate-200 bg-slate-50 p-3">
-                <div className="mb-4 flex h-7 w-7 items-center justify-center rounded bg-white text-sm font-semibold text-slate-700">
-                  {index + 1}
-                </div>
-                <p className="text-sm font-medium leading-5">{step}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <footer className="mx-auto flex max-w-7xl items-center gap-2 px-6 pb-8 text-sm text-slate-500">
-        <CheckCircle2 size={16} className="text-mint" />
-        Backend health endpoint: <code className="rounded bg-white px-2 py-1">/health</code>
-      </footer>
-    </main>
-  );
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null); const [cases, setCases] = useState<RecoveryCase[]>([]); const [runs, setRuns] = useState<RecoveryRun[]>([]); const [activity, setActivity] = useState<AuditActivity[]>([]);
+  const [error, setError] = useState<string | null>(null); const [loading, setLoading] = useState(true); const [running, setRunning] = useState(false); const [summary, setSummary] = useState<RecoveryRunSummary | null>(null); const [selectedCase, setSelectedCase] = useState<CaseDetail | null>(null); const [detailLoading, setDetailLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('ALL'); const [riskFilter, setRiskFilter] = useState('ALL'); const [reasonFilter, setReasonFilter] = useState('ALL');
+  const loadDashboard = async () => { setLoading(true); setError(null); try { const [nextMetrics, nextCases, nextRuns, nextActivity] = await Promise.all([api.getMetrics(), api.getCases(), api.getRuns(), api.getAuditActivity()]); setMetrics(nextMetrics); setCases(nextCases); setRuns(nextRuns); setActivity(nextActivity); } catch (loadError) { setError(loadError instanceof Error ? loadError.message : 'Unable to load dashboard.'); } finally { setLoading(false); } };
+  useEffect(() => { void loadDashboard(); }, []);
+  const filteredCases = useMemo(() => cases.filter((item) => (statusFilter === 'ALL' || item.status === statusFilter) && (riskFilter === 'ALL' || item.risk_level === riskFilter) && (reasonFilter === 'ALL' || item.failure_reason === reasonFilter)), [cases, statusFilter, riskFilter, reasonFilter]);
+  const selectCase = async (caseId: string) => { setDetailLoading(true); setSelectedCase(null); try { setSelectedCase(await api.getCase(caseId)); } catch (detailError) { setError(detailError instanceof Error ? detailError.message : 'Unable to load case details.'); } finally { setDetailLoading(false); } };
+  const runRecovery = async () => { setRunning(true); setError(null); setSummary(null); try { setSummary(await api.runRecovery()); await loadDashboard(); } catch (runError) { setError(runError instanceof Error ? runError.message : 'Recovery run failed.'); } finally { setRunning(false); } };
+  return <main className="app-shell"><header className="topbar"><div className="brand"><div className="brand-mark"><Activity size={21} /></div><div><strong>FluxPay</strong><span>Revenue recovery command center</span></div></div><div className="live-status"><span /> Live recovery workspace</div></header><div className="page-wrap"><section className="hero"><div><p className="eyebrow">AI-GUIDED RECOVERY</p><h1>Recover revenue before it slips away.</h1><p>Monitor failed payments, validate AI recommendations, and run a controlled recovery batch in one place.</p></div><button className="run-button" onClick={() => void runRecovery()} disabled={running || loading}><Play size={17} fill="currentColor" />{running ? 'Running recovery…' : 'Run AI Recovery'}</button></section>{error && <div className="notice error"><AlertCircle size={18}/><span>{error}</span><button onClick={() => void loadDashboard()}>Try again</button></div>}{summary && <div className="notice success"><CheckCircle2 size={19}/><div><strong>Recovery run completed</strong><span>{summary.recovered_cases} cases recovered · {money(summary.revenue_recovered)} recovered from {summary.cases_processed} cases processed.</span></div></div>}{loading && !metrics ? <LoadingBlock /> : metrics && <><section className="kpis"><Kpi icon={<AlertCircle />} label="Revenue at risk" value={money(metrics.total_revenue_at_risk)} detail={`${metrics.total_recovery_cases} recovery cases`} tone="risk" /><Kpi icon={<CircleDollarSign />} label="Revenue recovered" value={money(metrics.total_recovered_revenue)} detail={`${metrics.recovered_cases} cases recovered`} tone="positive" /><Kpi icon={<ArrowUpRight />} label="Recovery rate" value={`${Number(metrics.recovery_rate).toFixed(2)}%`} detail="Recovered revenue / at risk" tone="neutral" /><Kpi icon={<WalletCards />} label="Active recovery cases" value={String(metrics.active_recovery_cases)} detail={`${metrics.retrying_cases} awaiting retry`} tone="neutral" /></section><section className="content-grid"><div className="panel cases-panel"><div className="panel-heading"><div><p className="eyebrow">RECOVERY QUEUE</p><h2>Recovery cases</h2></div><span>{filteredCases.length} shown</span></div><div className="filters"><Filter value={statusFilter} onChange={setStatusFilter} options={['ALL', ...unique(cases.map((item) => item.status))]} placeholder="All statuses" /><Filter value={riskFilter} onChange={setRiskFilter} options={['ALL', ...unique(cases.map((item) => item.risk_level))]} placeholder="All risk levels" /><Filter value={reasonFilter} onChange={setReasonFilter} options={['ALL', ...unique(cases.map((item) => item.failure_reason))]} placeholder="All failure reasons" /></div><div className="table-wrap"><table><thead><tr><th>Customer</th><th>Payment</th><th>Failure</th><th>At risk</th><th>AI strategy</th><th>Status</th><th /></tr></thead><tbody>{filteredCases.map((item) => <tr key={item.id} onClick={() => void selectCase(item.id)}><td><strong>{item.customer_name}</strong><small>{item.customer_email}</small></td><td><strong>{money(item.payment_amount, item.currency)}</strong><small>{item.invoice_number}</small></td><td>{label(item.failure_reason)}</td><td>{money(item.revenue_at_risk, item.currency)}</td><td><Badge value={item.risk_level}/><small>{label(item.recommended_action)}</small></td><td><Badge value={item.status}/><small>{dateTime(item.created_at)}</small></td><td><ChevronRight size={17} /></td></tr>)}</tbody></table>{filteredCases.length === 0 && <div className="empty">No recovery cases match these filters.</div>}</div></div><aside className="right-rail"><RunsPanel runs={runs} /><ActivityPanel activity={activity} /></aside></section></>}</div>{(detailLoading || selectedCase) && <CaseModal detail={selectedCase} loading={detailLoading} onClose={() => { setSelectedCase(null); setDetailLoading(false); }} />}</main>;
 }
+
+function RunsPanel({ runs }: { runs: RecoveryRun[] }) { return <section className="panel compact"><div className="panel-heading"><div><p className="eyebrow">BATCH HISTORY</p><h2>Recovery runs</h2></div><Clock3 size={19}/></div>{runs.length ? <div className="runs">{runs.slice(0, 5).map((run) => <div className="run" key={run.run_id}><div><strong>{dateTime(run.started_at)}</strong><span>{run.cases_processed} cases · {run.recovered_cases} recovered</span></div><div><strong>{money(run.revenue_recovered)}</strong><span>{(Number(run.recovery_rate) * 100).toFixed(1)}% rate</span></div></div>)}</div> : <div className="empty">No batch runs yet.</div>}</section>; }
+function ActivityPanel({ activity }: { activity: AuditActivity[] }) { return <section className="panel compact"><div className="panel-heading"><div><p className="eyebrow">AUDIT TRAIL</p><h2>Recent activity</h2></div><ShieldCheck size={19}/></div>{activity.length ? <div className="activity-list">{activity.map((event) => <div className="activity" key={event.id}><span className="activity-dot"/><div><strong>{label(event.event_type)}</strong><small>{dateTime(event.created_at)} · {event.actor}</small></div></div>)}</div> : <div className="empty">Activity will appear as recovery cases are processed.</div>}</section>; }
+function Detail({ title, values }: { title: string; values: string[] }) { return <div className="detail"><h3>{title}</h3>{values.map((value) => <p key={value}>{value}</p>)}</div>; }
+function CaseModal({ detail, loading, onClose }: { detail: CaseDetail | null; loading: boolean; onClose: () => void }) { return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}><section className="modal" role="dialog" aria-modal="true" aria-label="Recovery case details" onMouseDown={(event) => event.stopPropagation()}><button className="close" onClick={onClose}><X size={20}/></button>{loading || !detail ? <LoadingBlock label="Loading case details…" /> : <><div className="modal-title"><p className="eyebrow">RECOVERY CASE</p><h2>{detail.customer.name}</h2><Badge value={detail.status}/></div><div className="detail-grid"><Detail title="Customer" values={[detail.customer.company_name ?? 'Individual customer', detail.customer.email, label(detail.customer.status)]}/><Detail title="Payment" values={[`${money(detail.payment.amount, detail.payment.currency)} · ${detail.payment.invoice_number}`, `Failure: ${label(detail.payment.failure_reason)}`, `At risk: ${money(detail.revenue_at_risk, detail.payment.currency)}`]}/><Detail title="Payment history" values={[`${detail.payment_history.attempt_count} attempts`, `${detail.payment_history.failed_attempts} failed attempts`, `Latest: ${dateTime(detail.payment_history.latest_attempt_at)}`]}/></div><div className="decision-card"><div className="decision-icon"><Bot size={19}/></div><div><p className="eyebrow">AI RECOMMENDATION</p><h3>{detail.decision ? label(detail.decision.recommended_action) : 'Awaiting analysis'}</h3>{detail.decision ? <><p>{detail.decision.diagnosis} · {Number(detail.decision.confidence) * 100}% confidence · {label(detail.decision.risk_level)} risk</p><blockquote>{detail.decision.reason}</blockquote></> : <p>This case has not received an AI decision yet.</p>}</div></div><div className="detail-grid"><Detail title="Policy result" values={detail.policy_result ? [`${detail.policy_result.allowed ? 'Approved' : 'Rejected'} · ${label(detail.policy_result.action ?? null)}`, detail.policy_result.reason ?? ''] : ['Not evaluated yet']}/><Detail title="Recovery actions" values={detail.actions.length ? detail.actions.map((action) => `${label(action.action_type)} · ${label(action.status)} · ${dateTime(action.executed_at ?? action.created_at)}`) : ['No actions recorded yet']}/></div></>}</section></div>; }

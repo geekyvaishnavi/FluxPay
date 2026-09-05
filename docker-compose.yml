@@ -1,17 +1,17 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: revive-postgres
+    container_name: FluxPay-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-revive}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-revive}
-      POSTGRES_DB: ${POSTGRES_DB:-revive}
+      POSTGRES_USER: ${POSTGRES_USER:-FluxPay}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-FluxPay}
+      POSTGRES_DB: ${POSTGRES_DB:-FluxPay}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - revive_postgres_data:/var/lib/postgresql/data
+      - FluxPay_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-revive} -d ${POSTGRES_DB:-revive}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-FluxPay} -d ${POSTGRES_DB:-FluxPay}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -19,11 +19,11 @@ services:
   backend:
     build:
       context: ./backend
-    container_name: revive-backend
+    container_name: FluxPay-backend
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-revive}:${POSTGRES_PASSWORD:-revive}@postgres:5432/${POSTGRES_DB:-revive}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-FluxPay}:${POSTGRES_PASSWORD:-FluxPay}@postgres:5432/${POSTGRES_DB:-FluxPay}
     ports:
       - "8000:8000"
     depends_on:
@@ -34,4 +34,4 @@ services:
       - ./backend:/app
 
 volumes:
-  revive_postgres_data:
+  FluxPay_postgres_data:

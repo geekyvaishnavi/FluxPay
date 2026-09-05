@@ -175,4 +175,4 @@ def seed_database() -> None:
 if __name__ == "__main__":
     reset_database()
     seed_database()
-    print("Seeded Revive database with 10 customers and 80 recovery cases.")
+    print("Seeded FluxPay database with 10 customers and 80 recovery cases.")

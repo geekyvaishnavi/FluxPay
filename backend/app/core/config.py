@@ -19,12 +19,12 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    database_url: str = "postgresql+psycopg://revive:revive@localhost:5432/revive"
+    database_url: str = "postgresql+psycopg://FluxPay:FluxPay@localhost:5432/FluxPay"
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     llm_provider: str = "stub"
     cors_origins: list[str] = ["http://localhost:5173"]
-    simulation_seed: str = "revive-demo"
+    simulation_seed: str = "FluxPay-demo"
     retry_success_probability: float = 0.65
     payment_link_success_probability: float = 0.55
 

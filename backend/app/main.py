@@ -8,9 +8,9 @@ from app.api.recovery import router as recovery_router
 from app.core.config import settings
 
 app = FastAPI(
-    title="Revive API",
+    title="FluxPay API",
     version="0.1.0",
-    description="Foundation API for the Revive revenue recovery MVP.",
+    description="Foundation API for the FluxPay revenue recovery MVP.",
 )
 
 app.add_middleware(
