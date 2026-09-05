@@ -6,8 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models import AgentDecision, RecoveryAction, RecoveryCase, RecoveryRun
-from app.models.enums import RecoveryActionStatus, RecoveryCaseStatus
+from app.models import AgentDecision, AuditLog, RecoveryAction, RecoveryCase, RecoveryRun
+from app.models.enums import AuditEventType, RecoveryActionStatus, RecoveryCaseStatus
 from app.schemas.recovery_run import RecoveryRunRequest, RecoveryRunSummary
 from app.services.action_executor import ActionExecutor, SimulationConfig
 from app.services.agent_analysis import analyze_recovery_case
@@ -49,6 +49,15 @@ def run_recovery_batch(
         )
         session.add(recovery_run)
         session.commit()
+    session.add(
+        AuditLog(
+            recovery_case_id=None,
+            event_type=AuditEventType.RECOVERY_RUN_STARTED,
+            actor="system",
+            details={"recovery_run_id": recovery_run.id, "demo_mode": recovery_run.demo_mode},
+        )
+    )
+    session.commit()
 
     executor = _configured_executor(action_executor, request)
     eligible_cases = _eligible_cases(session)
@@ -107,6 +116,14 @@ def run_recovery_batch(
     recovery_run.finished_at = datetime.now(UTC).replace(microsecond=0)
     recovery_run.current_case_id = None
     recovery_run.status = "COMPLETED"
+    session.add(
+        AuditLog(
+            recovery_case_id=None,
+            event_type=AuditEventType.RECOVERY_RUN_COMPLETED,
+            actor="system",
+            details={"recovery_run_id": recovery_run.id, "cases_processed": recovery_run.cases_processed, "revenue_recovered": str(recovery_run.revenue_recovered)},
+        )
+    )
     session.commit()
     session.refresh(recovery_run)
     return _summary(recovery_run)

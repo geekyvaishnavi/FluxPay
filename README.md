@@ -308,6 +308,20 @@ The supporting APIs are `POST /recovery/demo/reset`, `POST /recovery/run/live`, 
 `GET /recovery/runs/{run_id}/progress`. The standard synchronous `POST /recovery/run` remains
 available for API clients and tests.
 
+## Audit and Stopping Rules
+
+Audit records are append-only from the application layer; no API permits editing or deleting them.
+Use `GET /recovery/cases/{case_id}/audit` for a chronological case history, or `GET /recovery/audit-logs`
+with optional `event_type`, `case_id`, `start_at`, and `end_at` filters. The system records AI analysis,
+policy checks and rejections, actions, retry outcomes, payment-link events, escalation, stopping, and
+recovery-run lifecycle events.
+
+Automated recovery is bounded by backend policy: retries stop at the configured maximum, retry timing
+is enforced, repeated failures require escalation, and HIGH-risk automated actions are rejected unless
+explicitly enabled. Recovered, stopped, and escalated cases are terminal for automatic recovery; a new
+automatic action returns a conflict rather than changing their state. AI recommendations never override
+these rules.
+
 ## Recovery Strategy Scoring
 
 AI decisions also include an `expected_recovery_probability`, distinct from decision `confidence`.

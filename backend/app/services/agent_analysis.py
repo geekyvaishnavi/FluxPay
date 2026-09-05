@@ -22,6 +22,8 @@ def analyze_recovery_case(
         raise HTTPException(status_code=404, detail="Recovery case not found")
 
     context = build_recovery_case_context(session, recovery_case_id)
+    session.add(AuditLog(recovery_case_id=recovery_case.id, event_type=AuditEventType.AI_ANALYSIS_STARTED, actor="agent", details={"previous_state": recovery_case.status.value}))
+    session.commit()
 
     try:
         raw_response = dict(provider.diagnose_recovery_case(context))
@@ -64,6 +66,14 @@ def analyze_recovery_case(
                 "confidence": decision_output.confidence,
                 "expected_recovery_probability": decision_output.expected_recovery_probability,
             },
+        )
+    )
+    session.add(
+        AuditLog(
+            recovery_case_id=recovery_case.id,
+            event_type=AuditEventType.AI_DECISION_CREATED,
+            actor="agent",
+            details={"decision_id": decision.id, "action": decision_output.recommended_action.value, "reason": decision_output.reason},
         )
     )
     session.commit()

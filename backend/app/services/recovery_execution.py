@@ -1,12 +1,13 @@
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import AgentDecision, AuditLog, RecoveryAction, RecoveryCase
+from app.models import AgentDecision, AuditLog, PaymentAttempt, RecoveryAction, RecoveryCase
 from app.models.enums import AuditEventType, RecoveryActionStatus
 from app.schemas.execution import ActionExecutionResult, PolicyEvaluationResult
 from app.services.action_executor import ActionExecutor
 from app.services.policy.rules import PolicyEngine
+from app.services.recovery_state import assert_automatic_action_allowed
 
 
 def execute_recovery_case(
@@ -54,6 +55,8 @@ def execute_recovery_case(
             ),
         )
 
+    assert_automatic_action_allowed(recovery_case.status)
+
     policy_result = policy_engine.evaluate(session, recovery_case, decision)
     session.add(
         AuditLog(
@@ -65,6 +68,10 @@ def execute_recovery_case(
                 "allowed": policy_result.allowed,
                 "action": policy_result.action.value,
                 "reason": policy_result.reason,
+                "current_retry_count": session.scalar(
+                    select(func.count()).select_from(PaymentAttempt).where(PaymentAttempt.payment_id == recovery_case.payment_id)
+                ) or 0,
+                "applicable_limit": policy_engine.policy.max_retries,
             },
         )
     )
@@ -98,6 +105,10 @@ def execute_recovery_case(
                         "decision_id": decision.id,
                         "action": decision.recommended_action.value,
                         "reason": policy_result.reason,
+                        "current_retry_count": session.scalar(
+                            select(func.count()).select_from(PaymentAttempt).where(PaymentAttempt.payment_id == recovery_case.payment_id)
+                        ) or 0,
+                        "applicable_limit": policy_engine.policy.max_retries,
                     },
                 )
             )

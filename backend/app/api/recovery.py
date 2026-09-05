@@ -217,6 +217,50 @@ def _build_case_explanation(
     )
 
 
+def _audit_item(audit_log: AuditLog) -> AuditActivityItem:
+    return AuditActivityItem(
+        id=audit_log.id,
+        recovery_case_id=audit_log.recovery_case_id,
+        event_type=audit_log.event_type.value,
+        actor=audit_log.actor,
+        details=audit_log.details,
+        created_at=audit_log.created_at,
+    )
+
+
+@router.get("/cases/{case_id}/audit", response_model=list[AuditActivityItem])
+def get_case_audit(case_id: str, session: Session = Depends(get_db)):
+    if session.get(RecoveryCase, case_id) is None:
+        raise HTTPException(status_code=404, detail="Recovery case not found")
+    logs = session.scalars(
+        select(AuditLog)
+        .where(AuditLog.recovery_case_id == case_id)
+        .order_by(AuditLog.created_at, AuditLog.id)
+    ).all()
+    return [_audit_item(audit_log) for audit_log in logs]
+
+
+@router.get("/audit-logs", response_model=list[AuditActivityItem])
+def list_audit_logs(
+    event_type: str | None = None,
+    case_id: str | None = None,
+    start_at: datetime | None = None,
+    end_at: datetime | None = None,
+    session: Session = Depends(get_db),
+):
+    query = select(AuditLog)
+    if event_type:
+        query = query.where(AuditLog.event_type == event_type)
+    if case_id:
+        query = query.where(AuditLog.recovery_case_id == case_id)
+    if start_at:
+        query = query.where(AuditLog.created_at >= start_at)
+    if end_at:
+        query = query.where(AuditLog.created_at <= end_at)
+    logs = session.scalars(query.order_by(AuditLog.created_at, AuditLog.id).limit(200)).all()
+    return [_audit_item(audit_log) for audit_log in logs]
+
+
 @router.get("/audit-activity", response_model=list[AuditActivityItem])
 def list_audit_activity(limit: int = 12, session: Session = Depends(get_db)):
     limit = min(max(limit, 1), 50)

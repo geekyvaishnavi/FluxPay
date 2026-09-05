@@ -125,6 +125,12 @@ def test_batch_processes_cases_and_persists_metrics(
     assert progress.json()["status"] == "COMPLETED"
     assert progress.json()["processed_cases"] == 4
     assert progress.json()["total_cases"] == 4
+    assert session.scalar(
+        select(AuditLog).where(AuditLog.event_type == AuditEventType.RECOVERY_RUN_STARTED)
+    ) is not None
+    assert session.scalar(
+        select(AuditLog).where(AuditLog.event_type == AuditEventType.RECOVERY_RUN_COMPLETED)
+    ) is not None
 
 
 def test_batch_failed_recovery_and_repeated_execution_are_idempotent(

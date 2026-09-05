@@ -204,6 +204,13 @@ class ActionExecutor:
             AuditEventType.PAYMENT_RETRY_CREATED,
             {"payment_attempt_id": attempt.id, "attempt_number": next_attempt_number},
         )
+        if not retry_succeeded:
+            self._record_audit(
+                session,
+                recovery_case.id,
+                AuditEventType.PAYMENT_RETRY_FAILED,
+                {"payment_id": payment.id, "payment_attempt_id": attempt.id, "reason": "Simulated retry failed."},
+            )
         if retry_succeeded:
             self._record_audit(
                 session,
@@ -256,6 +263,12 @@ class ActionExecutor:
             },
             now,
             "Simulated payment recovery link sent.",
+        )
+        self._record_audit(
+            session,
+            recovery_case.id,
+            AuditEventType.PAYMENT_LINK_SENT,
+            {"payment_id": payment.id, "recovered": link_succeeded},
         )
         if link_succeeded:
             self._record_audit(

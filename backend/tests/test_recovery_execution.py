@@ -315,3 +315,41 @@ def test_case_detail_returns_404_for_missing_case(client: TestClient) -> None:
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Recovery case not found"
+
+
+def test_case_audit_endpoint_returns_chronological_execution_history(
+    client: TestClient, session: Session, payment: Payment
+) -> None:
+    recovery_case = prepare_case(session, payment, RecoveryActionType.RETRY_PAYMENT)
+    client.app.dependency_overrides[get_action_executor] = override_executor(True)
+    client.post(f"/recovery/cases/{recovery_case.id}/execute")
+
+    response = client.get(f"/recovery/cases/{recovery_case.id}/audit")
+
+    assert response.status_code == 200
+    events = response.json()
+    assert [event["created_at"] for event in events] == sorted(event["created_at"] for event in events)
+    event_types = {event["event_type"] for event in events}
+    assert AuditEventType.POLICY_EVALUATED.value in event_types
+    assert AuditEventType.ACTION_EXECUTED.value in event_types
+    assert AuditEventType.PAYMENT_RECOVERED.value in event_types
+
+
+def test_terminal_case_cannot_execute_a_new_automatic_action(
+    client: TestClient, session: Session, payment: Payment
+) -> None:
+    recovery_case = prepare_case(session, payment, RecoveryActionType.RETRY_PAYMENT)
+    client.app.dependency_overrides[get_action_executor] = override_executor(True)
+    client.post(f"/recovery/cases/{recovery_case.id}/execute")
+    initial_decision = session.scalar(
+        select(AgentDecision).where(AgentDecision.recovery_case_id == recovery_case.id)
+    )
+    assert initial_decision is not None
+    initial_decision.created_at = datetime.now(UTC) - timedelta(minutes=1)
+    session.commit()
+    add_decision(session, recovery_case, RecoveryActionType.SEND_PAYMENT_LINK)
+
+    response = client.post(f"/recovery/cases/{recovery_case.id}/execute")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Automatic recovery is not allowed after a case is RECOVERED."

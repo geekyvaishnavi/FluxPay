@@ -84,6 +84,14 @@ def detect_failed_payment(
             },
         )
     )
+    session.add(
+        AuditLog(
+            recovery_case_id=recovery_case.id,
+            event_type=AuditEventType.CASE_CREATED,
+            actor="system",
+            details={"payment_id": payment.id, "previous_state": None, "new_state": RecoveryCaseStatus.DETECTED.value},
+        )
+    )
     session.commit()
     session.refresh(recovery_case)
     return recovery_case
