@@ -99,14 +99,27 @@ def get_recovery_case(case_id: str, session: Session = Depends(get_db)):
         .where(RecoveryAction.recovery_case_id == recovery_case.id)
         .order_by(RecoveryAction.created_at.desc(), RecoveryAction.id.desc())
     ).all()
-    policy_result = next(
+    audit_logs = session.scalars(
+        select(AuditLog)
+        .where(AuditLog.recovery_case_id == recovery_case.id)
+        .order_by(AuditLog.created_at, AuditLog.id)
+    ).all()
+    policy_audit = next(
         (
-            action.result.get("policy")
-            for action in actions
-            if action.result.get("policy") is not None
+            audit_log
+            for audit_log in reversed(audit_logs)
+            if audit_log.event_type.value in {"POLICY_EVALUATED", "POLICY_REJECTED"}
         ),
         None,
     )
+    policy_result = policy_audit.details if policy_audit else next(
+        (action.result.get("policy") for action in actions if action.result.get("policy") is not None),
+        None,
+    )
+    previous_successes = int(decision.context_snapshot.get("previous_successful_payments", 0)) if decision else 0
+    previous_failures = int(decision.context_snapshot.get("previous_payment_failures", 0)) if decision else 0
+    failure_attempt = next((attempt for attempt in attempts if attempt.failure_reason is not None), None)
+    failure_reason = failure_attempt.failure_reason.value if failure_attempt else None
     return RecoveryCaseDetail(
         id=recovery_case.id,
         status=recovery_case.status,
@@ -126,12 +139,14 @@ def get_recovery_case(case_id: str, session: Session = Depends(get_db)):
             "currency": payment.currency,
             "status": payment.status.value,
             "due_at": payment.due_at,
-            "failure_reason": attempts[0].failure_reason.value if attempts and attempts[0].failure_reason else None,
+            "failure_reason": failure_reason,
         },
         payment_history={
             "attempt_count": len(attempts),
             "failed_attempts": sum(attempt.status.value == "FAILED" for attempt in attempts),
             "latest_attempt_at": attempts[0].attempted_at if attempts else None,
+            "previous_successful_payments": previous_successes,
+            "previous_payment_failures": previous_failures,
         },
         decision=(
             {
@@ -158,6 +173,43 @@ def get_recovery_case(case_id: str, session: Session = Depends(get_db)):
             }
             for action in actions
         ],
+        audit_events=[
+            {
+                "event_type": audit_log.event_type.value,
+                "actor": audit_log.actor,
+                "created_at": audit_log.created_at,
+            }
+            for audit_log in audit_logs
+        ],
+        explanation=_build_case_explanation(
+            failure_reason=failure_reason,
+            previous_successes=previous_successes,
+            previous_failures=previous_failures,
+            decision=decision,
+        ),
+        outcome={
+            "status": recovery_case.status.value,
+            "revenue_at_risk": str(recovery_case.revenue_at_risk),
+            "revenue_recovered": str(recovery_case.recovered_revenue),
+            "closed_at": recovery_case.closed_at,
+        },
+    )
+
+
+def _build_case_explanation(
+    failure_reason: str | None,
+    previous_successes: int,
+    previous_failures: int,
+    decision: AgentDecision | None,
+) -> str | None:
+    if decision is None:
+        return None
+    failure = (failure_reason or "an unknown payment issue").replace("_", " ").lower()
+    action = decision.recommended_action.value.replace("_", " ").lower()
+    return (
+        f"Payment failed because of {failure}. The customer has {previous_successes} previous "
+        f"successful payments and {previous_failures} previous payment failures. Revive recommended "
+        f"{action} because {decision.reason}"
     )
 
 

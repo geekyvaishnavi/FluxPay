@@ -284,3 +284,34 @@ def test_policy_rejection_creates_audit_log(
         .where(AuditLog.event_type == AuditEventType.POLICY_REJECTED)
     )
     assert audit_log is not None
+
+
+def test_case_detail_returns_explainable_recovery_lifecycle(
+    client: TestClient, session: Session, payment: Payment
+) -> None:
+    recovery_case = prepare_case(session, payment, RecoveryActionType.RETRY_PAYMENT)
+    client.app.dependency_overrides[get_action_executor] = override_executor(True)
+    client.post(f"/recovery/cases/{recovery_case.id}/execute")
+
+    response = client.get(f"/recovery/cases/{recovery_case.id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["customer"]["email"] == "maya@example.com"
+    assert body["payment"]["failure_reason"] == FailureReason.INSUFFICIENT_FUNDS.value
+    assert body["payment_history"]["attempt_count"] == 2
+    assert body["decision"]["recommended_action"] == RecoveryActionType.RETRY_PAYMENT.value
+    assert body["policy_result"]["allowed"] is True
+    assert body["actions"][0]["result"]["retry_succeeded"] is True
+    assert body["outcome"]["revenue_recovered"] == "250.00"
+    assert "Payment failed because of insufficient funds" in body["explanation"]
+    event_types = [event["event_type"] for event in body["audit_events"]]
+    assert AuditEventType.POLICY_EVALUATED.value in event_types
+    assert AuditEventType.PAYMENT_RECOVERED.value in event_types
+
+
+def test_case_detail_returns_404_for_missing_case(client: TestClient) -> None:
+    response = client.get("/recovery/cases/missing-case")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Recovery case not found"

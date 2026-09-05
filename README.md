@@ -284,6 +284,12 @@ that address with `VITE_API_BASE_URL` when needed. Click a recovery case to insp
 payment history, AI recommendation, policy result, and actions. Click **Run AI Recovery** to launch
 a batch, then observe the refreshed KPI cards, case statuses, batch history, and audit activity.
 
+Case details are supplied by `GET /recovery/cases/{case_id}`. The response is a safe, read-only
+explainability view: it includes customer and payment context, AI diagnosis and reasoning, the
+backend policy decision, executed action outcomes, recovered revenue, and chronological audit
+events. It never exposes provider credentials or gives the frontend authority to calculate or alter
+recovery results.
+
 Example rejected execution response:
 
 ```json

@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 from app.models.enums import (
     FailureReason,
-    RecoveryActionStatus,
     RecoveryActionType,
     RecoveryCaseStatus,
     RiskLevel,
@@ -49,6 +48,9 @@ class RecoveryCaseDetail(BaseModel):
     decision: dict | None
     policy_result: dict | None
     actions: list[dict]
+    audit_events: list[dict]
+    explanation: str | None
+    outcome: dict
 
 
 class AuditActivityItem(BaseModel):
