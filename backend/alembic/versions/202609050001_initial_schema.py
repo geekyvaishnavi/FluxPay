@@ -47,6 +47,15 @@ def upgrade() -> None:
         "PAYMENT_FAILED",
         "ACTION_SEEDED",
         "DECISION_SEEDED",
+        "AI_ANALYSIS_COMPLETED",
+        "AI_ANALYSIS_FAILED",
+        "POLICY_EVALUATED",
+        "POLICY_REJECTED",
+        "ACTION_EXECUTED",
+        "PAYMENT_RETRY_CREATED",
+        "PAYMENT_RECOVERED",
+        "CASE_ESCALATED",
+        "CASE_STOPPED",
         name="audit_event_type",
     )
 

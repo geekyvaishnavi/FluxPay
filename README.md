@@ -153,3 +153,77 @@ Example response:
 
 At this stage the agent only recommends an action. It does not execute payments, send emails, run
 retries, or modify the database directly outside the backend service workflow.
+
+## Step 4 Policy Engine and Simulated Execution
+
+Execute the latest AI recommendation for a recovery case:
+
+```bash
+curl -X POST http://localhost:8000/recovery/cases/{case_id}/execute
+```
+
+Execution always follows the backend-controlled flow:
+
+```text
+AI decision -> policy engine -> bounded action executor -> outcome -> audit log
+```
+
+The policy engine enforces:
+
+- maximum payment retries: 3
+- minimum retry interval: 24 hours
+- escalation after 3 failed attempts
+- no automated `RETRY_PAYMENT` or `SEND_PAYMENT_LINK` for HIGH-risk cases unless explicitly allowed
+- allowed actions: `RETRY_PAYMENT`, `SEND_PAYMENT_LINK`, `ESCALATE`, `STOP`
+
+The action executor is simulated:
+
+- `RETRY_PAYMENT` creates a payment attempt and simulates success or failure
+- `SEND_PAYMENT_LINK` records a simulated recovery message
+- `ESCALATE` marks the case as `ESCALATED`
+- `STOP` marks the case as `STOPPED`
+
+Successful simulated payment recovery sets `recovered_revenue` from the backend-owned payment
+amount. The AI never determines recovered revenue and never executes actions directly.
+
+Example approved execution response:
+
+```json
+{
+  "executed": true,
+  "idempotent": false,
+  "action": "RETRY_PAYMENT",
+  "status": "RECOVERED",
+  "reason": "Simulated retry succeeded.",
+  "recovered_revenue": "250.00",
+  "payment_attempt_id": "attempt-id",
+  "recovery_action_id": "action-id",
+  "executed_at": "2026-09-05T09:00:00Z",
+  "policy": {
+    "allowed": true,
+    "action": "RETRY_PAYMENT",
+    "reason": "Retry limit has not been reached."
+  }
+}
+```
+
+Example rejected execution response:
+
+```json
+{
+  "executed": false,
+  "idempotent": false,
+  "action": "RETRY_PAYMENT",
+  "status": "ACTION_REQUIRED",
+  "reason": "Minimum retry interval has not elapsed.",
+  "recovered_revenue": "0.00",
+  "payment_attempt_id": null,
+  "recovery_action_id": "blocked-action-id",
+  "executed_at": null,
+  "policy": {
+    "allowed": false,
+    "action": "RETRY_PAYMENT",
+    "reason": "Minimum retry interval has not elapsed."
+  }
+}
+```
