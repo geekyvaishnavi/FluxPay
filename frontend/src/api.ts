@@ -6,6 +6,11 @@ export type DashboardMetrics = {
   retrying_cases: number; escalated_cases: number; stopped_cases: number;
   average_expected_recovery_probability: string; expected_recovery_rate: string; expected_vs_actual_recovery: string;
 };
+export type RecoveryAnalytics = {
+  recovery_by_failure_reason: Array<{ failure_reason: string; case_count: number; revenue_at_risk: string; revenue_recovered: string; recovery_rate: string }>;
+  expected_recovery_rate: string; actual_recovery_rate: string;
+  action_mix: Array<{ action: string; case_count: number; recovered_cases: number; recovery_rate: string }>;
+};
 export type RecoveryCase = {
   id: string; customer_name: string; customer_email: string; invoice_number: string;
   payment_amount: string; currency: string; failure_reason: string | null; revenue_at_risk: string;
@@ -42,7 +47,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  getMetrics: () => request<DashboardMetrics>('/dashboard/metrics'), getCases: () => request<RecoveryCase[]>('/recovery/cases'),
+  getMetrics: () => request<DashboardMetrics>('/dashboard/metrics'), getAnalytics: () => request<RecoveryAnalytics>('/dashboard/analytics'), getCases: () => request<RecoveryCase[]>('/recovery/cases'),
   getCase: (caseId: string) => request<CaseDetail>(`/recovery/cases/${caseId}`), getRuns: () => request<RecoveryRun[]>('/recovery/runs'),
   getAuditActivity: () => request<AuditActivity[]>('/recovery/audit-activity'),
   runRecovery: () => request<RecoveryRunSummary>('/recovery/run', { method: 'POST', body: '{}' }),
